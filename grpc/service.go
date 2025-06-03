@@ -2,13 +2,15 @@ package grpc
 
 import (
 	"fmt"
+	"net"
+
 	"github.com/Qitmeer/llama.go/config"
 	"github.com/Qitmeer/llama.go/grpc/cmds"
+	"github.com/Qitmeer/llama.go/grpc/proto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/reflection"
-	"net"
 )
 
 type Service struct {
@@ -19,7 +21,7 @@ type Service struct {
 	quit chan struct{}
 
 	hw       *cmds.HelloWorld
-	generate *cmds.Generate
+	generate *proto.Generate
 }
 
 func New(ctx *cli.Context, cfg *config.Config) *Service {
@@ -66,6 +68,6 @@ func (ser *Service) HelloWorld() *cmds.HelloWorld {
 	return ser.hw
 }
 
-func (ser *Service) Generate() *cmds.Generate {
+func (ser *Service) Generate() *proto.Generate {
 	return ser.generate
 }

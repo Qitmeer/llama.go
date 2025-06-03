@@ -2,12 +2,14 @@ package grpc
 
 import (
 	"context"
+	"net/http"
+
 	"github.com/Qitmeer/llama.go/config"
 	"github.com/Qitmeer/llama.go/grpc/proto"
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/grpc-ecosystem/grpc-gateway/runtime"
+	v2runtime "github.com/grpc-ecosystem/grpc-gateway/v2/runtime"
 	"google.golang.org/grpc"
-	"net/http"
 )
 
 const DefaultGatewayAddr = "localhost:8081"
@@ -24,7 +26,8 @@ func (ser *Service) gateway() {
 		log.Error(err.Error())
 		return
 	}
-	err = proto.RegisterGenerateHandlerFromEndpoint(ctx, mux, config.DefaultGrpcEndpoint, opts)
+	mux2 := v2runtime.NewServeMux()
+	err = proto.RegisterGenerateHandlerFromEndpoint(ctx, mux2, config.DefaultGrpcEndpoint, opts)
 	if err != nil {
 		log.Error(err.Error())
 		return

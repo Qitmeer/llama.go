@@ -31,7 +31,7 @@ if [[ "$(uname -s)" == "Linux" ]]; then
     fi
 fi
 
-cmake -DCMAKE_BUILD_TYPE=Release $cudaCmake -G "Unix Makefiles" -S $coreDir -B $buildDir
+cmake -DCMAKE_BUILD_TYPE=Release  $cudaCmake -G "Unix Makefiles" -S $coreDir -B $buildDir
 cmake --build $buildDir --target llama_core -- -j 9
 
 if [ -e $buildDir/lib/libggml-cuda.a ]; then

@@ -58,8 +58,17 @@ func LlamaProcess(cfg *config.Config) (string, error) {
 	}
 	ip := C.CString(cfg.Prompt)
 	defer C.free(unsafe.Pointer(ip))
-	cfgArgs := fmt.Sprintf("llama -no-cnv --model %s --ctx-size %d --n-gpu-layers %d --n-predict %d --seed %d",
-		cfg.Model, cfg.CtxSize, cfg.NGpuLayers, cfg.NPredict, cfg.Seed)
+
+	cfgArgs := fmt.Sprintf("llama -no-cnv --model %s --ctx-size %d --n-gpu-layers %d --n-predict %d --seed %d"+
+		" --grp-attn-n %d --grp-attn-w %d "+
+		" --rope-freq-base %.1f --rope-freq-scale %.1f --yarn-ext-factor %.1f --yarn-attn-factor %.1f"+
+		" --yarn-beta-fast %.1f --yarn-beta-slow %.1f --yarn-orig-ctx %d --defrag-thold %.1f"+
+		" --main-gpu %d --temp %.1f --top-k %d --top-p %.1f --min-p %.1f",
+		cfg.Model, cfg.CtxSize, cfg.NGpuLayers, cfg.NPredict, cfg.Seed,
+		cfg.GrpAttnN, cfg.GrpAttnW,
+		cfg.RopeFreqBase, cfg.RopeFreqScale, cfg.YarnExtFactor, cfg.YarnAttnFactor,
+		cfg.YarnBetaFast, cfg.YarnBetaSlow, cfg.YarnOrigCtx, cfg.DefragThold,
+		cfg.MainGpu, cfg.Temperature, cfg.TopK, cfg.TopP, cfg.MinP)
 
 	ca := C.CString(cfgArgs)
 	defer C.free(unsafe.Pointer(ca))

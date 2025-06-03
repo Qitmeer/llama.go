@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package proto;
 
+option go_package = "github.com/Qitmeer/llama.go/grpc/proto";
+
 import "google/api/annotations.proto";
 
 service Generate {
@@ -15,6 +17,78 @@ service Generate {
 
 message GenerateRequest {
 	string prompt = 1;
+	
+	// Number of tokens to predict (-1 = infinity, -2 = until context filled)
+	int32 n_predict = 2;
+	
+	// Context size
+	int32 n_ctx = 3;
+	
+	// Logical batch size for prompt processing
+	int32 n_batch = 4;
+	
+	// Number of tokens to keep from initial prompt
+	int32 n_keep = 5;
+	
+	// Number of parallel sequences to decode
+	int32 n_parallel = 6;
+	
+	// Group-attention factor
+	int32 grp_attn_n = 7;
+	
+	// Group-attention width
+	int32 grp_attn_w = 8;
+	
+	// Print token count every n tokens (-1 = disabled)
+	int32 n_print = 9;
+	
+	// RoPE base frequency
+	float rope_freq_base = 10;
+	
+	// RoPE frequency scaling factor
+	float rope_freq_scale = 11;
+	
+	// YaRN extrapolation mix factor
+	float yarn_ext_factor = 12;
+	
+	// YaRN magnitude scaling factor
+	float yarn_attn_factor = 13;
+	
+	// YaRN low correction dim
+	float yarn_beta_fast = 14;
+	
+	// YaRN high correction dim
+	float yarn_beta_slow = 15;
+	
+	// YaRN original context length
+	int32 yarn_orig_ctx = 16;
+	
+	// KV cache defragmentation threshold
+	float defrag_thold = 17;
+	
+	// Number of layers to store in VRAM (-1 = use default)
+	int32 n_gpu_layers = 18;
+	
+	// The GPU that is used for scratch and small tensors
+	int32 main_gpu = 19;
+	
+	// Temperature for sampling
+	float temperature = 20;
+	
+	// Top-k sampling (0 = disabled)
+	int32 top_k = 21;
+	
+	// Top-p sampling (1.0 = disabled)
+	float top_p = 22;
+	
+	// Min-p sampling (0.0 = disabled)
+	float min_p = 23;
+	
+	// Top-n-sigma sampling (-1.0 = disabled)
+	float top_n_sigma = 24;
+
+	// Random number generator seed (-1 = random seed)
+	uint32 seed = 25;
 }
 
 message GenerateResponse {
