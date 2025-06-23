@@ -4,17 +4,19 @@ package config
 
 import (
 	"fmt"
-	"github.com/ethereum/go-ethereum/log"
-	"github.com/urfave/cli/v2"
 	"math"
 	"path/filepath"
 	"runtime"
+
+	"github.com/ethereum/go-ethereum/log"
+	"github.com/urfave/cli/v2"
 )
 
 const (
-	defaultLogLevel     = "info"
-	DefaultGrpcEndpoint = "localhost:50051"
-	defaultNPredict     = 512
+	defaultLogLevel       = "info"
+	DefaultGrpcEndpoint   = "localhost:50051"
+	DefaultOpenAIEndpoint = "localhost:50052"
+	defaultNPredict       = 512
 )
 
 var (
