@@ -20,7 +20,7 @@ func Run() error {
 				Name: "Qitmeer",
 			},
 		},
-		Copyright:            "(c) 2020 Qitmeer",
+		Copyright:            "(c) 2025 Qitmeer",
 		Usage:                "Llama",
 		Flags:                config.AppFlags,
 		EnableBashCompletion: true,

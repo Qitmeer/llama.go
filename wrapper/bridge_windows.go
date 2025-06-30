@@ -16,6 +16,7 @@ import "C"
 
 import (
 	"fmt"
+	"github.com/ollama/ollama/api"
 	"unsafe"
 
 	"github.com/Qitmeer/llama.go/config"
