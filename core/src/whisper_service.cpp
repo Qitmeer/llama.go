@@ -111,6 +111,9 @@ WhisperService::~WhisperService() {
 
 const std::string WhisperService::generate(const std::string& model,const std::string& input) {
     std::string ret;
+    if (model.empty() || input.empty()) {
+        return ret;
+    }
 
     ggml_backend_load_all();
 

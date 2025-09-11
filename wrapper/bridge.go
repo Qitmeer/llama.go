@@ -8,7 +8,6 @@ import "C"
 
 import (
 	"fmt"
-	"github.com/ollama/ollama/api"
 	"sync"
 	"unsafe"
 
@@ -18,7 +17,7 @@ import (
 var (
 	mu         sync.Mutex
 	channels   = make(map[int]chan any)
-	nextChanID = 0
+	nextChanID = 1
 )
 
 func LlamaInteractive(cfg *config.Config) error {
@@ -36,75 +35,53 @@ func LlamaInteractive(cfg *config.Config) error {
 	ca := C.CString(cfgArgs)
 	defer C.free(unsafe.Pointer(ca))
 
-	ret := C.llama_start(ca, 0, ip)
-	if ret != 0 {
-		return fmt.Errorf("Llama start error")
-	}
-	ret = C.llama_stop()
-	if ret != 0 {
-		return fmt.Errorf("Llama stop error")
+	ret := C.llama_interactive(ca, ip)
+	if !bool(ret) {
+		return fmt.Errorf("Llama interactive error")
 	}
 	return nil
 }
 
-func LlamaGenerate(prompt string) (string, error) {
-	if len(prompt) <= 0 {
-		return "", fmt.Errorf("No prompt")
+func LlamaGenerate(id int, jsStr string) error {
+	if len(jsStr) <= 0 {
+		return fmt.Errorf("json string")
 	}
-	ip := C.CString(prompt)
-	defer C.free(unsafe.Pointer(ip))
+	fmt.Println(jsStr)
+	js := C.CString(jsStr)
+	defer C.free(unsafe.Pointer(js))
 
-	ret := C.llama_gen(ip)
-	if ret == nil {
-		return "", fmt.Errorf("Llama run error")
+	ret := C.llama_gen(C.int(id), js)
+	if !bool(ret.ret) {
+		return fmt.Errorf("Llama run error")
 	}
-	content := C.GoString(ret)
-	C.free(unsafe.Pointer(ret))
-	return content, nil
+	return nil
 }
 
-func LlamaChat(msgs []api.Message) (string, error) {
-	size := len(msgs)
-	if size <= 0 {
-		return "", fmt.Errorf("No messages for chat")
+func LlamaChat(id int, jsStr string) error {
+	if len(jsStr) <= 0 {
+		return fmt.Errorf("json string")
 	}
-	roles := make([]*C.char, size)
-	contents := make([]*C.char, size)
+	js := C.CString(jsStr)
+	defer C.free(unsafe.Pointer(js))
 
-	for i, m := range msgs {
-		roles[i] = C.CString(m.Role)
-		defer C.free(unsafe.Pointer(roles[i]))
-
-		contents[i] = C.CString(m.Content)
-		defer C.free(unsafe.Pointer(contents[i]))
+	ret := C.llama_chat(C.int(id), js)
+	if !bool(ret.ret) {
+		return fmt.Errorf("Llama run error")
 	}
-
-	rolesPtr := (**C.char)(unsafe.Pointer(&roles[0]))
-	contentsPtr := (**C.char)(unsafe.Pointer(&contents[0]))
-
-	ret := C.llama_chat(rolesPtr, contentsPtr, C.int(size))
-	if ret == nil {
-		return "", fmt.Errorf("Llama run error")
-	}
-	content := C.GoString(ret)
-	C.free(unsafe.Pointer(ret))
-	return content, nil
+	return nil
 }
 
 func LlamaStart(cfg *config.Config) error {
 	if !cfg.HasModel() {
 		return fmt.Errorf("No model")
 	}
-	cfgArgs := fmt.Sprintf("llama -i --model %s --ctx-size %d --n-gpu-layers %d --n-predict %d --seed %d",
+	cfgArgs := fmt.Sprintf("llama --model %s --ctx-size %d --n-gpu-layers %d --n-predict %d --seed %d",
 		cfg.ModelPath(), cfg.CtxSize, cfg.NGpuLayers, cfg.NPredict, cfg.Seed)
 	ca := C.CString(cfgArgs)
 	defer C.free(unsafe.Pointer(ca))
 
-	ip := C.CString(cfg.Prompt)
-	defer C.free(unsafe.Pointer(ip))
-
-	ret := C.llama_start(ca, 1, ip)
-	if ret != 0 {
+	ret := C.llama_start(ca)
+	if !bool(ret) {
 		return fmt.Errorf("Llama start error")
 	}
 	return nil
@@ -112,7 +89,7 @@ func LlamaStart(cfg *config.Config) error {
 
 func LlamaStop() error {
 	ret := C.llama_stop()
-	if ret != 0 {
+	if !bool(ret) {
 		return fmt.Errorf("Llama stop error")
 	}
 	return nil
@@ -143,11 +120,12 @@ func LlamaEmbedding(cfg *config.Config, model string, prompts string, embdOutput
 	defer C.free(unsafe.Pointer(ca))
 
 	ret := C.llama_embedding(ca, ip)
-	if ret == nil {
-		return "", fmt.Errorf("llama_embedding run error")
+	if !bool(ret.ret) {
+		return "", fmt.Errorf("Llama run error")
 	}
-	content := C.GoString(ret)
-	C.free(unsafe.Pointer(ret))
+
+	content := C.GoString(ret.content)
+	C.free(unsafe.Pointer(ret.content))
 	return content, nil
 }
 
@@ -165,12 +143,27 @@ func WhisperGenerate(cfg *config.Config, input string) (string, error) {
 	defer C.free(unsafe.Pointer(ip))
 
 	ret := C.whisper_gen(model, ip)
-	if ret == nil {
-		return "", fmt.Errorf("Whisper run error")
+	if !bool(ret.ret) {
+		return "", fmt.Errorf("Llama run error")
 	}
-	content := C.GoString(ret)
-	C.free(unsafe.Pointer(ret))
+
+	content := C.GoString(ret.content)
+	C.free(unsafe.Pointer(ret.content))
 	return content, nil
+}
+
+func NewChan() (int, chan any) {
+	mu.Lock()
+	defer mu.Unlock()
+	id := nextChanID
+	_, ok := channels[id]
+	if ok {
+		return 0, nil
+	}
+	ch := make(chan any)
+	channels[id] = ch
+	nextChanID++
+	return id, ch
 }
 
 //export PushToChan

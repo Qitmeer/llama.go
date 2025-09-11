@@ -26,6 +26,10 @@ bool Scheduler::start(const std::vector<std::string>& args) {
     if (!common_params_parse(argc, v_argv.data(), params, LLAMA_EXAMPLE_SERVER)) {
         return false;
     }
+    if (params.model_alias.empty() && !params.model.path.empty()) {
+        std::filesystem::path fp(params.model.path);
+        params.model_alias=fp.stem();
+    }
 
     common_init();
     llama_backend_init();
@@ -35,9 +39,6 @@ bool Scheduler::start(const std::vector<std::string>& args) {
     LOG_INF("\n");
     LOG_INF("%s\n", common_params_get_system_info(params).c_str());
     LOG_INF("\n");
-
-
-    std::unique_ptr<httplib::Server> svr;
 
     // Necessary similarity of prompt for slot selection
     ctx_server.slot_prompt_similarity = params.slot_prompt_similarity;
@@ -77,7 +78,10 @@ bool Scheduler::start(const std::vector<std::string>& args) {
     });
     running= true;
     // this call blocks the main thread until queue_tasks.terminate() is called
-    ctx_server.queue_tasks.start_loop();
+    tasks_thread = std::thread([&](){
+        ctx_server.queue_tasks.start_loop();
+    });
+
     return true;
 }
 
@@ -88,6 +92,9 @@ bool Scheduler::stop() {
     }
     running= false;
     cleanup();
+    if (tasks_thread.joinable()) {
+        tasks_thread.join();
+    }
     return true;
 }
 
@@ -95,14 +102,6 @@ void Scheduler::cleanup() {
     // this will unblock start_loop()
     ctx_server.queue_tasks.terminate();
     llama_backend_free();
-}
-
-const std::string Scheduler::generate(const std::string& prompt) {
-    return "";
-}
-
-const std::string Scheduler::chat(const std::vector<Message>& mgs) {
-    return "";
 }
 
 bool Scheduler::is_running() {
@@ -241,7 +240,7 @@ void Scheduler::handle_completions_impl(
         }, [&](const json & error_data) {
             res_error(res, error_data);
         }, is_connection_closed);
-
+        res.complete(res.id);
         ctx_server.queue_results.remove_waiting_task_ids(task_ids);
     } else {
         auto server_sent_event=[&](const char * event, const json & data) {
@@ -252,7 +251,7 @@ void Scheduler::handle_completions_impl(
 
             LOG_DBG("data stream, to_send: %s", str.c_str());
 
-            return res.write(str);
+            return res.write(res.id,str);
         };
         ctx_server.receive_cmpl_results_stream(task_ids, [&](server_task_result_ptr & result) -> bool {
             json res_json = result->to_json();
@@ -271,13 +270,14 @@ void Scheduler::handle_completions_impl(
             server_sent_event("error", error_data);
         }, [&res]() {
             // note: do not use req.is_connection_closed here because req is already destroyed
-            return !res.is_writable();
+            return !res.is_writable(res.id);
         });
         if (oaicompat != OAICOMPAT_TYPE_NONE) {
             static const std::string ev_done = "data: [DONE]\n\n";
-            res.write(ev_done);
+            res.write(res.id,ev_done);
         }
-        res.complete();
+        res.success= true;
+        res.complete(res.id);
         ctx_server.queue_results.remove_waiting_task_ids(task_ids);
     }
 }
@@ -426,11 +426,11 @@ void Scheduler::handle_embeddings_oai(const Request & req, Response & res) {
 
 void Scheduler::res_error(Response & res, const json & error_data) {
     json final_response {{"error", error_data}};
-    res.content=safe_json_to_str(final_response);
-    res.success= true;
+    res.write(res.id,safe_json_to_str(final_response));
+    res.success= false;
 };
 
 void Scheduler::res_ok(Response & res, const json & data) {
-    res.content=safe_json_to_str(data);
-    res.success= false;
+    res.write(res.id,safe_json_to_str(data));
+    res.success= true;
 };

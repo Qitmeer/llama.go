@@ -19,26 +19,26 @@ int main() {
     std::cout << "env: " << env_model << "=" << model << std::endl;
 
     std::stringstream ss;
-    ss << "test_runner_gen -m " << model << " -i --seed 0";
+    ss << "test_runner_gen -m " << model << " --seed 0";
 
-    std::future<void> ll_main = std::async(std::launch::async, [&ss](){
-        bool ret = llama_start(ss.str().c_str(), 1,"");
-        std::cout<<"Result0:"<<ret<<std::endl;
-    });
+    int ret = llama_start(ss.str().c_str());
+    if (ret == EXIT_FAILURE) {
+        return ret;
+    }
 
     std::this_thread::sleep_for(std::chrono::seconds(2));
 
     std::future<void> ll_gen = std::async(std::launch::async, [](){
-        std::string prompt="why sky is blue";
-        std::string content = llama_gen(prompt.c_str());
-        if (content.empty()) {
+        std::string js_str="{\"prompt\":\"why the sky is blue\"}";
+        Result result = llama_gen(js_str.c_str());
+        if (!result.ret) {
+            std::cout<<"fail"<<std::endl;
             return;
         }
-        std::cout<<"Response:"<<content<<std::endl;
 
-        prompt="what color is water";
-        content = llama_gen(prompt.c_str());
+        std::string content(result.content);
         if (content.empty()) {
+            std::cout<<"fail"<<std::endl;
             return;
         }
         std::cout<<"Response:"<<content<<std::endl;
@@ -49,7 +49,6 @@ int main() {
 
 
     ll_gen.wait();
-    ll_main.wait();
 
 
     std::cout<<"success"<<std::endl;

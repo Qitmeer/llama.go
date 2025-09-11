@@ -28,7 +28,7 @@ set(WHISPER_BUILD_EXAMPLES ON)
 add_subdirectory(whisper.cpp ${CMAKE_BINARY_DIR}/whisper)
 
 # core
-set(SRCS src/generate.cpp src/interactive.cpp src/process.cpp src/runner.cpp src/event_processor.cpp src/embedding.cpp src/whisper_service.cpp src/scheduler.cpp src/server_context.h)
+set(SRCS src/interactive.cpp src/process.cpp src/runner.cpp src/event_processor.cpp src/embedding.cpp src/whisper_service.cpp src/scheduler.cpp src/server_context.h)
 set(TARGET llama_core)
 
 include_directories(./include)

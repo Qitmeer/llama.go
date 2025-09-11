@@ -18,11 +18,11 @@ int main() {
 
     std::stringstream ss;
     ss << "test_embedding -m " << model << " --pooling mean";
-
-    std::string ret=llama_embedding(ss.str().c_str(),std::string("Hello World").c_str());
-    if (ret.empty()) {
+    Result ret=llama_embedding(ss.str().c_str(),std::string("Hello World").c_str());
+    std::string content(ret.content);
+    if (content.empty()) {
         return EXIT_FAILURE;
     }
-    std::cout<<"result:\n"<<ret<<std::endl;
+    std::cout<<"result:\n"<<content<<std::endl;
     return EXIT_SUCCESS;
 }

@@ -4,20 +4,16 @@
 #include "whisper_service.h"
 #include "scheduler.h"
 
-static Runner *g_runner;
-static int g_idx=0;
-
 extern "C" {
     void PushToChan(int id, const char* val);
     void CloseChan(int id);
 }
 
-int llama_start(const char * args,int async,const char * prompt) {
-    if (g_runner != nullptr) {
-        LOG("Delete last runner: id=%d\n",g_runner->getID());
-        delete g_runner;
-        g_runner= nullptr;
+bool llama_start(const char * args) {
+    if (Scheduler::instance().is_running()) {
+        return false;
     }
+
     std::istringstream iss(args);
     std::vector<std::string> v_args;
     std::string v_a;
@@ -25,100 +21,84 @@ int llama_start(const char * args,int async,const char * prompt) {
         v_args.push_back(v_a);
     }
 
-    g_runner=new Runner(g_idx,v_args,async>0,std::string(prompt));
-    g_idx++;
-    if (g_runner->start()) {
-        return EXIT_SUCCESS;
+    if (!Scheduler::instance().start(v_args)) {
+        return false;
     }
-    return EXIT_FAILURE;
+    return true;
 }
 
-int llama_stop() {
-    if (g_runner == nullptr) {
-        LOG("Runner is already delete\n");
-        return EXIT_SUCCESS;
+bool llama_stop() {
+    if (!Scheduler::instance().is_running()) {
+        return false;
     }
-    bool ret=g_runner->stop();
-    LOG("Delete last runner: id=%d\n",g_runner->getID());
-    delete g_runner;
-    g_runner= nullptr;
-    if (ret) {
-        return EXIT_SUCCESS;
+    if (!Scheduler::instance().stop()) {
+        return false;
     }
-    return EXIT_FAILURE;
+    return true;
 }
 
-const char * llama_gen(const char * prompt) {
-    if (g_runner == nullptr) {
-        LOG_ERR("Not init llama\n");
-        return "";
+Result llama_gen(int id,const char * js_str) {
+    if (!Scheduler::instance().is_running()) {
+        return {false};
     }
-    std::string result = g_runner->generate(std::string(prompt));
-    char* arr = new char[result.size() + 1];
-    std::copy(result.begin(), result.end(), arr);
-    arr[result.size()] = '\0';
+    Request rq{id,std::string(js_str)};
+    Response rp{id};
 
-    return arr;
+    rp.write = [](int id, const std::string& content) {
+        PushToChan(id, content.c_str());
+        return true;
+    };
+    rp.is_writable = [](int id) {
+        return true;
+    };
+    rp.complete = [](int id) {
+        CloseChan(id);
+    };
+
+    Scheduler::instance().handle_completions_oai(rq,rp);
+    if (!rp.success) {
+        return {false};
+    }
+    return {true};
 }
 
-const char * llama_chat(const char **roles,const char **contents, int size) {
-    if (g_runner == nullptr) {
-        LOG_ERR("Not init llama\n");
-        return "";
-    }
-    std::vector<Message> msgs;
-
-    for (int i = 0; i < size; i++) {
-        Message msg;
-        msg.role=roles[i];
-        msg.content=contents[i];
-
-        msgs.push_back(msg);
+Result llama_chat(int id,const char * js_str) {
+    if (!Scheduler::instance().is_running()) {
+        return {false};
     }
 
-    std::string result = g_runner->chat(msgs);
-    char* arr = new char[result.size() + 1];
-    std::copy(result.begin(), result.end(), arr);
-    arr[result.size()] = '\0';
+    Request rq{id,std::string(js_str)};
+    Response rp{id};
 
-    return arr;
+    rp.write = [](int id, const std::string& content) {
+        PushToChan(id, content.c_str());
+        return true;
+    };
+    rp.is_writable = [](int id) {
+        return true;
+    };
+    rp.complete = [](int id) {
+        CloseChan(id);
+    };
+
+    Scheduler::instance().handle_chat_completions(rq,rp);
+    if (!rp.success) {
+        return {false};
+    }
+
+    return {true};
 }
 
-const char * whisper_gen(const char * model,const char * input) {
+Result whisper_gen(const char * model,const char * input) {
     WhisperService ws;
 
     std::string result = ws.generate(std::string(model),std::string(input));
+    if (result.empty()) {
+        return {false};
+    }
     char* arr = new char[result.size() + 1];
     std::copy(result.begin(), result.end(), arr);
     arr[result.size()] = '\0';
 
-    return arr;
-}
-
-int scheduler_start(const char * args) {
-    if (Scheduler::instance().is_running()) {
-        return EXIT_FAILURE;
-    }
-
-    std::istringstream iss(args);
-    std::vector<std::string> v_args;
-    std::string v_a;
-    while (iss >> v_a) {
-        v_args.push_back(v_a);
-    }
-
-    if (Scheduler::instance().start(v_args)) {
-        return EXIT_SUCCESS;
-    }
-    return EXIT_FAILURE;
-}
-
-int scheduler_stop() {
-    if (!Scheduler::instance().is_running()) {
-        return EXIT_FAILURE;
-    }
-    if (Scheduler::instance().stop()) {
-        return EXIT_SUCCESS;
-    }
-    return EXIT_FAILURE;
+    return {true,arr};
 }

@@ -72,7 +72,7 @@ static void batch_decode(llama_context * ctx, llama_batch & batch, float * outpu
     }
 }
 
-const char * llama_embedding(const char * args,const char * prompt) {
+Result llama_embedding(const char * args,const char * prompt) {
     std::istringstream iss(args);
     std::vector<std::string> v_args;
     std::string v_a;
@@ -89,7 +89,7 @@ const char * llama_embedding(const char * args,const char * prompt) {
     params.prompt=prompt;
 
     if (!common_params_parse(argc, v_argv.data(), params, LLAMA_EXAMPLE_EMBEDDING)) {
-        return "";
+        return {false};
     }
 
     common_init();
@@ -124,7 +124,7 @@ const char * llama_embedding(const char * args,const char * prompt) {
 
     if (model == NULL) {
         LOG_ERR("%s: unable to load model\n", __func__);
-        return "";
+        return {false};
     }
 
     const llama_vocab * vocab = llama_model_get_vocab(model);
@@ -136,7 +136,7 @@ const char * llama_embedding(const char * args,const char * prompt) {
 
     if (llama_model_has_encoder(model) && llama_model_has_decoder(model)) {
         LOG_ERR("%s: computing embeddings in encoder-decoder models is not supported\n", __func__);
-        return "";
+        return {false};
     }
 
     if (n_ctx > n_ctx_train) {
@@ -189,7 +189,7 @@ const char * llama_embedding(const char * args,const char * prompt) {
         if (inp.size() > n_batch) {
             LOG_ERR("%s: number of tokens in input line (%lld) exceeds batch size (%lld), increase batch size and re-run\n",
                     __func__, (long long int) inp.size(), (long long int) n_batch);
-            return "";
+            return {false};
         }
         inputs.push_back(inp);
     }
@@ -423,5 +423,5 @@ const char * llama_embedding(const char * args,const char * prompt) {
     std::copy(ret.begin(), ret.end(), arr);
     arr[ret.size()] = '\0';
 
-    return arr;
+    return {false,arr};
 }

@@ -9,7 +9,6 @@ import (
 	"github.com/ethereum/go-ethereum/log"
 	"github.com/urfave/cli/v2"
 	"sync"
-	"time"
 )
 
 type App struct {
@@ -43,14 +42,6 @@ func (a *App) Start() error {
 		return wrapper.LlamaInteractive(a.cfg)
 	} else if a.cfg.IsLonely() {
 		log.Debug("Not support")
-		a.wg.Add(1)
-		go a.startLLama()
-		time.Sleep(time.Second)
-		content, err := wrapper.LlamaGenerate(a.cfg.Prompt)
-		if err != nil {
-			return err
-		}
-		log.Info(content)
 		return nil
 	} else {
 		a.wg.Add(1)
@@ -66,6 +57,7 @@ func (a *App) startLLama() {
 	if err != nil {
 		log.Error(err.Error())
 	}
+	log.Info("Started llama")
 }
 
 func (a *App) Stop() error {

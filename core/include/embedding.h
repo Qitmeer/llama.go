@@ -1,10 +1,10 @@
 #pragma once
-
+#include "process.h"
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-const char * llama_embedding(const char * args,const char * prompt);
+Result llama_embedding(const char * args,const char * prompt);
 
 #ifdef __cplusplus
 }

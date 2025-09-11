@@ -17,9 +17,9 @@ int main() {
     std::cout << "env: " << env_model << "=" << model << std::endl;
 
     std::stringstream ss;
-    ss << "test_runner -m " << model << " -i --seed 0";
+    ss << "test_runner -m " << model << " --seed 0";
 
-    bool ret=llama_start(ss.str().c_str(), 0,std::string("").c_str());
+    bool ret=llama_start(ss.str().c_str());
     if (!ret) {
         return 1;
     }
