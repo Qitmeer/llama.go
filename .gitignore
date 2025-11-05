@@ -9,4 +9,6 @@ cmake-build-*
 # Claude Code configuration
 .claude/settings.local.json
 
+# Model files and backups
 *.gguf
+*.backup

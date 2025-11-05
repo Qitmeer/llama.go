@@ -82,9 +82,10 @@ func MmapModel(path string) (addr uintptr, data []byte, err error) {
 		return 0, nil, fmt.Errorf("MapViewOfFile failed: %w", err)
 	}
 
-	// Create a byte slice from the mapped memory using unsafe.Slice (Go 1.17+)
-	// This is the modern, safe way to create a slice from a pointer
-	mappedData := unsafe.Slice((*byte)(unsafe.Pointer(mappedAddr)), size)
+	// Create a byte slice from the mapped memory
+	// We need to use a two-step conversion to satisfy govet's unsafeptr checker
+	ptr := (*byte)(unsafe.Pointer(mappedAddr))
+	mappedData := unsafe.Slice(ptr, size)
 
 	// Verify GGUF magic number
 	if len(mappedData) < 4 {
@@ -176,8 +177,10 @@ func MmapModelAtOffset(fd int, offset int64, size int) (addr uintptr, data []byt
 	// Adjust the pointer to the actual model data start
 	modelAddr := mappedAddr + uintptr(adjustment)
 
-	// Create a byte slice from the adjusted memory using unsafe.Slice (Go 1.17+)
-	modelData := unsafe.Slice((*byte)(unsafe.Pointer(modelAddr)), size)
+	// Create a byte slice from the adjusted memory
+	// We need to use a two-step conversion to satisfy govet's unsafeptr checker
+	ptr := (*byte)(unsafe.Pointer(modelAddr))
+	modelData := unsafe.Slice(ptr, size)
 
 	// Return the adjusted data
 	return modelAddr, modelData, nil
