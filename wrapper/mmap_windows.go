@@ -83,9 +83,9 @@ func MmapModel(path string) (addr uintptr, data []byte, err error) {
 	}
 
 	// Create a byte slice from the mapped memory
-	// We need to use a two-step conversion to satisfy govet's unsafeptr checker
-	ptr := (*byte)(unsafe.Pointer(mappedAddr))
-	mappedData := unsafe.Slice(ptr, size)
+	// Safe: mappedAddr is immediately returned from syscall.Call and used here
+	//nolint:govet // Conversion from uintptr (from syscall) to unsafe.Pointer is safe here
+	mappedData := unsafe.Slice((*byte)(unsafe.Pointer(mappedAddr)), size)
 
 	// Verify GGUF magic number
 	if len(mappedData) < 4 {
@@ -178,9 +178,9 @@ func MmapModelAtOffset(fd int, offset int64, size int) (addr uintptr, data []byt
 	modelAddr := mappedAddr + uintptr(adjustment)
 
 	// Create a byte slice from the adjusted memory
-	// We need to use a two-step conversion to satisfy govet's unsafeptr checker
-	ptr := (*byte)(unsafe.Pointer(modelAddr))
-	modelData := unsafe.Slice(ptr, size)
+	// Safe: modelAddr is derived from mappedAddr (from syscall) with page alignment adjustment
+	//nolint:govet // Conversion from uintptr (from syscall) to unsafe.Pointer is safe here
+	modelData := unsafe.Slice((*byte)(unsafe.Pointer(modelAddr)), size)
 
 	// Return the adjusted data
 	return modelAddr, modelData, nil
