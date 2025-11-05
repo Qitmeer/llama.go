@@ -12,6 +12,20 @@ if [ ! -d "./core/llama.cpp/src" ]; then
     echo "Update llama.cpp"
 fi
 
+# Apply memory loading patch if not already applied
+if [ ! -f "./core/llama.cpp/.patch_applied" ]; then
+    echo "Applying memory loading patch..."
+    cd ./core/llama.cpp
+    if git apply --check ../patches/memory-loading.patch 2>/dev/null; then
+        git apply ../patches/memory-loading.patch
+        touch .patch_applied
+        echo "Patch applied successfully"
+    else
+        echo "Warning: Patch already applied or cannot be applied"
+    fi
+    cd ../..
+fi
+
 cmake --version
 
 
@@ -53,5 +67,12 @@ go build $cudaTag -ldflags "-X ${versionBuild}" -o $buildDir/bin/llama
 
 echo "Output executable file:${buildDir}/bin/llama"
 $buildDir/bin/llama --version
+
+# Build modelembed
+echo "Building modelembed..."
+cd ../modelembed
+go build -o $buildDir/bin/modelembed
+
+echo "Output executable file:${buildDir}/bin/modelembed"
 
 

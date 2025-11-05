@@ -1,0 +1,237 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    name: Build on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform: linux
+            arch: amd64
+          - os: macos-13  # Intel Mac
+            platform: darwin
+            arch: amd64
+          - os: macos-14  # Apple Silicon Mac
+            platform: darwin
+            arch: arm64
+          - os: windows-latest
+            platform: windows
+            arch: amd64
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Set up Go
+      uses: actions/setup-go@v5
+      with:
+        go-version: "stable"
+
+    - name: Set up build environment (Ubuntu)
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y build-essential cmake
+
+    - name: Set up build environment (macOS)
+      if: startsWith(matrix.os, 'macos')
+      run: |
+        brew install cmake
+
+    - name: Install MinGW-w64 (Windows)
+      if: matrix.os == 'windows-latest'
+      run: |
+        choco install mingw -y
+        echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" >> $env:GITHUB_PATH
+
+    - name: Get llama.cpp commit
+      id: get_commit
+      shell: bash
+      run: |
+        LLAMA_COMMIT=$(git submodule status core/llama.cpp | awk '{print $1}' | sed 's/^-//')
+        echo "llama_commit=${LLAMA_COMMIT}" >> $GITHUB_OUTPUT
+        echo "Llama.cpp commit: ${LLAMA_COMMIT}"
+
+    - name: Build
+      shell: bash
+      run: |
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          export PATH="/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin:$PATH"
+          export CC=gcc
+          export CXX=g++
+          make
+        else
+          make
+        fi
+
+    - name: Verify build output
+      shell: bash
+      run: |
+        echo "Checking build output:"
+        ls -la build/bin/
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          ./build/bin/llama.exe --version || echo "Binary execution failed"
+        else
+          ./build/bin/llama --version || echo "Binary execution failed"
+        fi
+
+    - name: Create release package
+      shell: bash
+      run: |
+        RELEASE_DIR="llama.go-${{ matrix.platform }}-${{ matrix.arch }}"
+        mkdir -p "$RELEASE_DIR"
+
+        # Create directory structure
+        mkdir -p "$RELEASE_DIR/bin"
+        mkdir -p "$RELEASE_DIR/wrapper"
+        mkdir -p "$RELEASE_DIR/core/patches"
+        mkdir -p "$RELEASE_DIR/core/include"
+        mkdir -p "$RELEASE_DIR/core/src"
+
+        # Copy binary
+        if [ "${{ matrix.os }}" == "windows-latest" ]; then
+          cp build/bin/llama.exe "$RELEASE_DIR/bin/"
+        else
+          cp build/bin/llama "$RELEASE_DIR/bin/"
+        fi
+
+        # Copy wrapper files
+        cp wrapper/*.go "$RELEASE_DIR/wrapper/" || true
+
+        # Copy core files
+        cp core/patches/memory-loading.patch "$RELEASE_DIR/core/patches/"
+        cp -r core/include/* "$RELEASE_DIR/core/include/" || true
+        cp -r core/src/* "$RELEASE_DIR/core/src/" || true
+
+        # Copy documentation
+        cp LICENSE "$RELEASE_DIR/" || true
+        cp README.md "$RELEASE_DIR/" || true
+
+        # Save llama.cpp commit hash
+        echo "${{ steps.get_commit.outputs.llama_commit }}" > "$RELEASE_DIR/LLAMA_COMMIT"
+
+        # Verify package contents
+        echo "Package contents:"
+        ls -la "$RELEASE_DIR/"
+        ls -la "$RELEASE_DIR/bin/"
+        ls -la "$RELEASE_DIR/wrapper/"
+        ls -la "$RELEASE_DIR/core/patches/"
+
+    - name: Create tarball (Unix)
+      if: runner.os != 'Windows'
+      run: |
+        RELEASE_DIR="llama.go-${{ matrix.platform }}-${{ matrix.arch }}"
+        tar -czf "${RELEASE_DIR}.tar.gz" "$RELEASE_DIR"
+
+    - name: Create zip (Windows)
+      if: runner.os == 'Windows'
+      run: |
+        Compress-Archive -Path "llama.go-${{ matrix.platform }}-${{ matrix.arch }}" -DestinationPath "llama.go-${{ matrix.platform }}-${{ matrix.arch }}.zip"
+
+    - name: Upload artifact (Unix)
+      if: runner.os != 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: llama.go-${{ matrix.platform }}-${{ matrix.arch }}
+        path: llama.go-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz
+
+    - name: Upload artifact (Windows)
+      if: runner.os == 'Windows'
+      uses: actions/upload-artifact@v4
+      with:
+        name: llama.go-${{ matrix.platform }}-${{ matrix.arch }}
+        path: llama.go-${{ matrix.platform }}-${{ matrix.arch }}.zip
+
+  release:
+    needs: build
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch'
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        submodules: recursive
+
+    - name: Get llama.cpp commit
+      id: get_commit
+      run: |
+        LLAMA_COMMIT=$(git submodule status core/llama.cpp | awk '{print $1}' | sed 's/^-//')
+        echo "llama_commit=${LLAMA_COMMIT}" >> $GITHUB_OUTPUT
+        echo "Llama.cpp commit: ${LLAMA_COMMIT}"
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: artifacts
+
+    - name: Debug artifacts
+      run: |
+        echo "Artifacts directory:"
+        ls -la artifacts/
+        find artifacts -type f
+
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        tag_name: ${{ github.ref_name || format('manual-{0}', github.run_number) }}
+        name: Release ${{ github.ref_name || format('manual-{0}', github.run_number) }}
+        body: |
+          Pre-built binaries for llama.go with memory loading feature
+
+          **llama.cpp commit**: `${{ steps.get_commit.outputs.llama_commit }}`
+
+          ## Features
+          - Memory-based model loading without creating temporary files
+          - Support for mmap on all platforms
+          - macOS automatic fallback to memory loading
+
+          ## Installation
+
+          Download the appropriate package for your platform and extract it.
+
+          ### Linux (amd64)
+          ```bash
+          tar xzf llama.go-linux-amd64.tar.gz
+          cd llama.go-linux-amd64
+          ./bin/llama --version
+          ```
+
+          ### macOS (Intel)
+          ```bash
+          tar xzf llama.go-darwin-amd64.tar.gz
+          cd llama.go-darwin-amd64
+          ./bin/llama --version
+          ```
+
+          ### macOS (Apple Silicon)
+          ```bash
+          tar xzf llama.go-darwin-arm64.tar.gz
+          cd llama.go-darwin-arm64
+          ./bin/llama --version
+          ```
+
+          ### Windows (amd64)
+          Extract `llama.go-windows-amd64.zip` and run:
+          ```powershell
+          .\bin\llama.exe --version
+          ```
+        draft: ${{ github.event_name == 'workflow_dispatch' }}
+        prerelease: ${{ github.event_name == 'workflow_dispatch' }}
+        files: |
+          artifacts/llama.go-*/*
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

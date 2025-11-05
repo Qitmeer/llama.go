@@ -9,6 +9,11 @@ extern "C" {
     void CloseChan(int id);
 }
 
+// Global variables for memory-loaded model
+const void *g_model_buffer = nullptr;
+size_t g_model_buffer_size = 0;
+bool g_use_mmap = false;
+
 bool llama_start(const char * args) {
     if (Scheduler::instance().is_running()) {
         return false;
@@ -138,4 +143,60 @@ Result get_slots() {
     arr[result.size()] = '\0';
 
     return {true,arr};
+}
+
+// Memory-based loading functions
+bool llama_start_from_memory(const void * model_data, size_t size,
+                              const char * args) {
+    if (Scheduler::instance().is_running()) {
+        return false;
+    }
+
+    // Store the memory buffer in global variables
+    g_model_buffer = model_data;
+    g_model_buffer_size = size;
+    g_use_mmap = false;
+
+    std::istringstream iss(args);
+    std::vector<std::string> v_args;
+    std::string v_a;
+    while (iss >> v_a) {
+        v_args.push_back(v_a);
+    }
+
+    if (!Scheduler::instance().start(v_args)) {
+        // Clear global variables on failure
+        g_model_buffer = nullptr;
+        g_model_buffer_size = 0;
+        return false;
+    }
+    return true;
+}
+
+bool llama_start_from_mmap(const void * addr, size_t size,
+                            const char * args) {
+    if (Scheduler::instance().is_running()) {
+        return false;
+    }
+
+    // Store the mmap'd memory in global variables
+    g_model_buffer = addr;
+    g_model_buffer_size = size;
+    g_use_mmap = true;
+
+    std::istringstream iss(args);
+    std::vector<std::string> v_args;
+    std::string v_a;
+    while (iss >> v_a) {
+        v_args.push_back(v_a);
+    }
+
+    if (!Scheduler::instance().start(v_args)) {
+        // Clear global variables on failure
+        g_model_buffer = nullptr;
+        g_model_buffer_size = 0;
+        g_use_mmap = false;
+        return false;
+    }
+    return true;
 }

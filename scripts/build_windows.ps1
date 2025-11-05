@@ -11,6 +11,21 @@ if (-Not (Test-Path "./core/llama.cpp/src" -PathType Container)) {
     Write-Host "Update llama.cpp"
 }
 
+# Apply memory loading patch if not already applied
+if (-Not (Test-Path "core/llama.cpp/.patch_applied")) {
+    Write-Host "Applying memory loading patch..."
+    Push-Location core/llama.cpp
+    $patchCheck = git apply --check ..\patches\memory-loading.patch 2>&1
+    if ($LASTEXITCODE -eq 0) {
+        git apply ..\patches\memory-loading.patch
+        New-Item -ItemType File -Path ".patch_applied" -Force | Out-Null
+        Write-Host "Patch applied successfully"
+    } else {
+        Write-Host "Warning: Patch already applied or cannot be applied"
+    }
+    Pop-Location
+}
+
 cmake --version
 
 $coreDir = (Get-Location).Path + "\core"
@@ -37,6 +52,13 @@ go build -ldflags "-X $versionBuild" -o $buildDir/bin/llama.exe
 
 Write-Host "Output executable file: $buildDir/bin/llama.exe"
 & "$buildDir/bin/llama.exe" --version
+
+# Build modelembed
+Write-Host "Building modelembed..."
+cd ../modelembed
+go build -o $buildDir/bin/modelembed.exe
+
+Write-Host "Output executable file: $buildDir/bin/modelembed.exe"
 
 
 

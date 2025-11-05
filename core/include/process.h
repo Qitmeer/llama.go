@@ -5,6 +5,7 @@ extern "C" {
 #endif
 
 #include <stdbool.h>
+#include <stddef.h>
 
 typedef struct Result {
     bool ret;
@@ -28,6 +29,12 @@ Result whisper_gen(const char * model,const char * input);
 CommonParams get_common_params();
 Result get_props();
 Result get_slots();
+
+// Memory-based loading functions
+bool llama_start_from_memory(const void * model_data, size_t size,
+                              const char * args);
+bool llama_start_from_mmap(const void * addr, size_t size,
+                            const char * args);
 
 #ifdef __cplusplus
 }

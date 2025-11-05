@@ -1,5 +1,9 @@
 #include "scheduler.h"
 
+// External global variables for memory-loaded model
+extern const void *g_model_buffer;
+extern size_t g_model_buffer_size;
+extern bool g_use_mmap;
 
 Scheduler::Scheduler() {
     std::cout << "Scheduler Constructor"<< std::endl;
@@ -23,6 +27,16 @@ bool Scheduler::start(const std::vector<std::string>& args) {
     int argc = v_argv.size();
 
     common_params params;
+
+    // NOTE: Set memory buffer in params BEFORE parsing arguments
+    // This allows arg.cpp to skip file validation when loading from memory
+    if (g_model_buffer != nullptr && g_model_buffer_size > 0) {
+        LOG_INF("%s: detected memory buffer (size=%zu, mmap=%d), will load from memory\n",
+                __func__, g_model_buffer_size, g_use_mmap);
+        params.model_from_memory = g_model_buffer;
+        params.model_from_memory_size = g_model_buffer_size;
+    }
+
     if (!common_params_parse(argc, v_argv.data(), params, LLAMA_EXAMPLE_SERVER)) {
         return false;
     }

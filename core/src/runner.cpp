@@ -20,6 +20,11 @@
 #include <string>
 #include <vector>
 
+// External global variables for memory-loaded model
+extern const void *g_model_buffer;
+extern size_t g_model_buffer_size;
+extern bool g_use_mmap;
+
 #if defined(_MSC_VER)
 #pragma warning(disable: 4244 4267) // possible loss of data
 #endif
@@ -113,6 +118,16 @@ bool Runner::start(int id,const std::vector<std::string>& args,bool async,const 
     common_params params;
     params.prompt=m_prompt;
     m_params = &params;
+
+    // NOTE: Set memory buffer in params BEFORE parsing arguments
+    // This allows arg.cpp to skip file validation when loading from memory
+    if (g_model_buffer != nullptr && g_model_buffer_size > 0) {
+        LOG_INF("%s: detected memory buffer (size=%zu, mmap=%d), will load from memory\n",
+                __func__, g_model_buffer_size, g_use_mmap);
+        params.model_from_memory = g_model_buffer;
+        params.model_from_memory_size = g_model_buffer_size;
+    }
+
     if (!common_params_parse(argc, v_argv.data(), params, LLAMA_EXAMPLE_MAIN, print_usage)) {
         return false;
     }
@@ -164,6 +179,13 @@ bool Runner::start(int id,const std::vector<std::string>& args,bool async,const 
     // load the model and apply lora adapter, if any
     LOG_INF("%s: load the model and apply lora adapter, if any\n", __func__);
     common_init_result llama_init = common_init_from_params(params);
+
+    // Clear global variables after use
+    if (g_model_buffer != nullptr) {
+        g_model_buffer = nullptr;
+        g_model_buffer_size = 0;
+        g_use_mmap = false;
+    }
 
     model = llama_init.model.get();
     ctx = llama_init.context.get();

@@ -8,3 +8,5 @@ cmake-build-*
 
 # Claude Code configuration
 .claude/settings.local.json
+
+*.gguf
