@@ -92,43 +92,91 @@ jobs:
       shell: bash
       run: |
         RELEASE_DIR="llama.go-${{ matrix.platform }}-${{ matrix.arch }}"
-        mkdir -p "$RELEASE_DIR"
+        TEMP_DIR=$(mktemp -d)
 
-        # Create directory structure
-        mkdir -p "$RELEASE_DIR/bin"
-        mkdir -p "$RELEASE_DIR/wrapper"
-        mkdir -p "$RELEASE_DIR/core/patches"
-        mkdir -p "$RELEASE_DIR/core/include"
-        mkdir -p "$RELEASE_DIR/core/src"
+        # Copy entire repository to temp directory
+        cp -r . "$TEMP_DIR/repo"
 
-        # Copy binary
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          cp build/bin/llama.exe "$RELEASE_DIR/bin/"
-        else
-          cp build/bin/llama "$RELEASE_DIR/bin/"
-        fi
+        # Move to the release directory name
+        mv "$TEMP_DIR/repo" "$RELEASE_DIR"
 
-        # Copy wrapper files
-        cp wrapper/*.go "$RELEASE_DIR/wrapper/" || true
+        # Remove unnecessary files and directories
+        rm -rf "$RELEASE_DIR/.git"
+        rm -rf "$RELEASE_DIR/.github"
+        rm -rf "$RELEASE_DIR/.gitignore"
+        rm -rf "$RELEASE_DIR/.gitmodules"
 
-        # Copy core files
-        cp core/patches/memory-loading.patch "$RELEASE_DIR/core/patches/"
-        cp -r core/include/* "$RELEASE_DIR/core/include/" || true
-        cp -r core/src/* "$RELEASE_DIR/core/src/" || true
+        # Remove the llama.cpp submodule (we only need the built artifacts)
+        rm -rf "$RELEASE_DIR/core/llama.cpp"
 
-        # Copy documentation
-        cp LICENSE "$RELEASE_DIR/" || true
-        cp README.md "$RELEASE_DIR/" || true
+        # Remove test files if any
+        find "$RELEASE_DIR" -name "*_test.go" -delete || true
 
         # Save llama.cpp commit hash
         echo "${{ steps.get_commit.outputs.llama_commit }}" > "$RELEASE_DIR/LLAMA_COMMIT"
 
+        # Create usage instructions
+        cat > "$RELEASE_DIR/USAGE.md" << 'EOF'
+        # Using llama.go as a Library
+
+        ## Quick Start
+
+        1. Extract this package
+        2. Import in your Go project:
+
+        ```go
+        import "github.com/Qitmeer/llama.go/wrapper"
+
+        // Load model from memory
+        modelData := []byte{...} // your model data
+        wrapper.LoadFromMemory(modelData, "llama --ctx-size 2048")
+
+        // Create channel and run inference
+        id, ch := wrapper.NewChan()
+        defer wrapper.CloseChan(id)
+
+        go wrapper.LlamaGenerate(id, `{"prompt":"Hello","stream":true}`)
+
+        // Receive tokens
+        for token := range ch {
+            fmt.Print(token)
+        }
+        ```
+
+        ## Building from Source
+
+        If you need to rebuild:
+
+        ```bash
+        make clean
+        make
+        ```
+
+        ## Pre-built Components
+
+        This package includes:
+        - Pre-built llama.cpp libraries in `build/`
+        - All Go source code
+        - Build scripts and Makefile
+        - Core C/C++ source and headers
+
+        ## Platform
+
+        - OS: ${{ matrix.platform }}
+        - Architecture: ${{ matrix.arch }}
+        - llama.cpp commit: ${{ steps.get_commit.outputs.llama_commit }}
+        EOF
+
         # Verify package contents
         echo "Package contents:"
         ls -la "$RELEASE_DIR/"
-        ls -la "$RELEASE_DIR/bin/"
-        ls -la "$RELEASE_DIR/wrapper/"
-        ls -la "$RELEASE_DIR/core/patches/"
+        echo ""
+        echo "Build artifacts:"
+        ls -la "$RELEASE_DIR/build/" || echo "No build directory"
+        echo ""
+        echo "Go packages:"
+        find "$RELEASE_DIR" -name "*.go" -type f | wc -l
+        echo "files"
 
     - name: Create tarball (Unix)
       if: runner.os != 'Windows'
@@ -190,44 +238,87 @@ jobs:
         tag_name: ${{ github.ref_name || format('manual-{0}', github.run_number) }}
         name: Release ${{ github.ref_name || format('manual-{0}', github.run_number) }}
         body: |
-          Pre-built binaries for llama.go with memory loading feature
+          llama.go with memory loading feature - Ready to use as a library or standalone binary
 
           **llama.cpp commit**: `${{ steps.get_commit.outputs.llama_commit }}`
 
           ## Features
           - Memory-based model loading without creating temporary files
-          - Support for mmap on all platforms
-          - macOS automatic fallback to memory loading
+          - Support for mmap on all platforms (Linux, macOS, Windows)
+          - macOS automatic fallback to memory loading for large models
+          - Self-contained executable support with embedded models
+          - Ready to use as a Go library
 
-          ## Installation
+          ## What's Included
 
-          Download the appropriate package for your platform and extract it.
+          Each platform package contains:
+          - Pre-built llama.cpp libraries (`build/`)
+          - All Go source code (wrapper, api, config, etc.)
+          - Build scripts and Makefile
+          - C/C++ headers and source files
+          - go.mod and go.sum for dependency management
+          - USAGE.md with library integration examples
+
+          ## Using as a Go Library
+
+          Extract the package and import in your project:
+
+          ```go
+          import "github.com/Qitmeer/llama.go/wrapper"
+
+          // Load model from memory
+          modelData := []byte{...} // your model data or go:embed
+          wrapper.LoadFromMemory(modelData, "llama --ctx-size 2048")
+
+          // Run inference
+          id, ch := wrapper.NewChan()
+          defer wrapper.CloseChan(id)
+
+          go wrapper.LlamaGenerate(id, `{"prompt":"Hello","stream":true}`)
+
+          for token := range ch {
+              fmt.Print(token)
+          }
+          ```
+
+          See `USAGE.md` in the package for more examples.
+
+          ## Using as Standalone Binary
 
           ### Linux (amd64)
           ```bash
           tar xzf llama.go-linux-amd64.tar.gz
           cd llama.go-linux-amd64
-          ./bin/llama --version
+          ./build/bin/llama --version
           ```
 
           ### macOS (Intel)
           ```bash
           tar xzf llama.go-darwin-amd64.tar.gz
           cd llama.go-darwin-amd64
-          ./bin/llama --version
+          ./build/bin/llama --version
           ```
 
           ### macOS (Apple Silicon)
           ```bash
           tar xzf llama.go-darwin-arm64.tar.gz
           cd llama.go-darwin-arm64
-          ./bin/llama --version
+          ./build/bin/llama --version
           ```
 
           ### Windows (amd64)
           Extract `llama.go-windows-amd64.zip` and run:
           ```powershell
-          .\bin\llama.exe --version
+          .\build\bin\llama.exe --version
+          ```
+
+          ## Building from Source
+
+          If you need to rebuild:
+          ```bash
+          cd llama.go-<platform>-<arch>
+          make clean
+          make
           ```
         draft: ${{ github.event_name == 'workflow_dispatch' }}
         prerelease: ${{ github.event_name == 'workflow_dispatch' }}
