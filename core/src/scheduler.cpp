@@ -35,6 +35,8 @@ bool Scheduler::start(const std::vector<std::string>& args) {
                 __func__, g_model_buffer_size, g_use_mmap);
         params.model_from_memory = g_model_buffer;
         params.model_from_memory_size = g_model_buffer_size;
+        // Set use_mmap based on g_use_mmap flag
+        params.use_mmap = g_use_mmap;
     }
 
     if (!common_params_parse(argc, v_argv.data(), params, LLAMA_EXAMPLE_SERVER)) {
