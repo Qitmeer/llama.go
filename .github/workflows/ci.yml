@@ -44,10 +44,14 @@ jobs:
 
     - name: Install MinGW-w64 and CMake (Windows)
       if: matrix.os == 'windows-latest'
-      run: |
-        choco install mingw -y
-        choco install cmake -y
-        echo "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin" >> $env:GITHUB_PATH
+      uses: msys2/setup-msys2@v2
+      with:
+        msystem: MINGW64
+        update: true
+        install: >-
+          mingw-w64-x86_64-gcc
+          mingw-w64-x86_64-cmake
+          mingw-w64-x86_64-make
 
     - name: Get llama.cpp commit
       id: get_commit
@@ -71,12 +75,11 @@ jobs:
 
     - name: Build C++ library (Windows)
       if: runner.os == 'Windows'
-      shell: pwsh
+      shell: msys2 {0}
       run: |
-        $env:PATH = "C:\ProgramData\chocolatey\lib\mingw\tools\install\mingw64\bin;$env:PATH"
-        $env:CC = "gcc"
-        $env:CXX = "g++"
-        .\scripts\build_windows.ps1
+        export CC=gcc
+        export CXX=g++
+        bash ./scripts/build.sh
 
     - name: Verify C++ build
       shell: bash
@@ -92,28 +95,35 @@ jobs:
           exit 1
         fi
 
-    - name: Build Go wrapper
+    - name: Build Go wrapper (Unix)
+      if: runner.os != 'Windows'
       shell: bash
       run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          export PATH="/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin:$PATH"
-          export CC=gcc
-          export CXX=g++
-        fi
         go mod tidy
         go build -v ./wrapper
 
-    - name: Build modelembed sample
+    - name: Build Go wrapper (Windows)
+      if: runner.os == 'Windows'
+      shell: msys2 {0}
+      run: |
+        export CC=gcc
+        export CXX=g++
+        go mod tidy
+        go build -v ./wrapper
+
+    - name: Build modelembed sample (Unix)
+      if: runner.os != 'Windows'
       shell: bash
       run: |
-        if [ "${{ matrix.os }}" == "windows-latest" ]; then
-          export PATH="/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin:$PATH"
-          export CC=gcc
-          export CXX=g++
-          go build -v -o build/bin/modelembed.exe ./cmd/modelembed
-        else
-          go build -v -o build/bin/modelembed ./cmd/modelembed
-        fi
+        go build -v -o build/bin/modelembed ./cmd/modelembed
+
+    - name: Build modelembed sample (Windows)
+      if: runner.os == 'Windows'
+      shell: msys2 {0}
+      run: |
+        export CC=gcc
+        export CXX=g++
+        go build -v -o build/bin/modelembed.exe ./cmd/modelembed
 
     - name: Verify Go builds
       shell: bash
@@ -150,9 +160,8 @@ jobs:
 
     - name: Run tests (Windows)
       if: matrix.os == 'windows-latest'
-      shell: bash
+      shell: msys2 {0}
       run: |
-        export PATH="/c/ProgramData/chocolatey/lib/mingw/tools/install/mingw64/bin:$PATH"
         export CC=gcc
         export CXX=g++
         go test -v ./... || echo "No tests or tests failed"
