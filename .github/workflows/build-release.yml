@@ -106,9 +106,6 @@ jobs:
         rm -rf "$RELEASE_DIR/.gitignore"
         rm -rf "$RELEASE_DIR/.gitmodules"
 
-        # Remove the llama.cpp submodule (we only need the built artifacts)
-        rm -rf "$RELEASE_DIR/core/llama.cpp"
-
         # Remove test files if any
         find "$RELEASE_DIR" -name "*_test.go" -delete || true
 
