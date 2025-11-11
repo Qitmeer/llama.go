@@ -34,7 +34,7 @@ $buildDir = (Get-Location).Path + "\build"
 Write-Host "core dir: $coreDir"
 Write-Host "build dir: $buildDir"
 
-cmake -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" -DCMAKE_C_FLAGS="-D_UCRT -D__USE_MINGW_ANSI_STDIO=0" -DCMAKE_CXX_FLAGS="-D_UCRT -D__USE_MINGW_ANSI_STDIO=0" -S $coreDir -B $buildDir
+cmake -DCMAKE_BUILD_TYPE=Release -G "Unix Makefiles" -DCMAKE_C_FLAGS="-D__USE_MINGW_ANSI_STDIO=0" -DCMAKE_CXX_FLAGS="-D__USE_MINGW_ANSI_STDIO=0" -S $coreDir -B $buildDir
 cmake --build $buildDir --target llama_core -- -j 9
 
 # Go
