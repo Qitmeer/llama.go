@@ -78,9 +78,6 @@ jobs:
       if: runner.os == 'Windows'
       shell: msys2 {0}
       run: |
-        # Inherit Windows PATH to access GitHub Actions tools
-        export MSYS2_PATH_TYPE=inherit
-
         # Force apply patch before building
         echo "Applying memory loading patch..."
         cd core/llama.cpp
@@ -94,7 +91,7 @@ jobs:
 
         export CC=gcc
         export CXX=g++
-        bash ./scripts/build.sh
+        bash ./scripts/build_cpp.sh
 
     - name: Verify C++ build
       shell: bash
@@ -119,7 +116,7 @@ jobs:
 
     - name: Build Go wrapper (Windows)
       if: runner.os == 'Windows'
-      shell: msys2 {0}
+      shell: bash
       run: |
         export CC=gcc
         export CXX=g++
@@ -134,7 +131,7 @@ jobs:
 
     - name: Build modelembed sample (Windows)
       if: runner.os == 'Windows'
-      shell: msys2 {0}
+      shell: bash
       run: |
         export CC=gcc
         export CXX=g++
@@ -175,7 +172,7 @@ jobs:
 
     - name: Run tests (Windows)
       if: matrix.os == 'windows-latest'
-      shell: msys2 {0}
+      shell: bash
       run: |
         export CC=gcc
         export CXX=g++
