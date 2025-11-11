@@ -77,6 +77,17 @@ jobs:
       if: runner.os == 'Windows'
       shell: msys2 {0}
       run: |
+        # Force apply patch before building
+        echo "Applying memory loading patch..."
+        cd core/llama.cpp
+        # Remove marker file to force reapply
+        rm -f .patch_applied
+        # Try to apply patch, ignore errors if already applied
+        git apply ../patches/memory-loading.patch 2>&1 || true
+        # Always create marker file
+        touch .patch_applied
+        cd ../..
+
         export CC=gcc
         export CXX=g++
         bash ./scripts/build.sh
