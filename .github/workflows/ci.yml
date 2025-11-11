@@ -42,17 +42,19 @@ jobs:
       run: |
         brew install cmake
 
-    - name: Install MinGW-w64 and CMake (Windows)
+    - name: Install MinGW-w64 (Windows - MSVCRT)
       if: matrix.os == 'windows-latest'
-      uses: msys2/setup-msys2@v2
-      with:
-        msystem: MINGW64
-        update: true
-        install: >-
-          git
-          mingw-w64-x86_64-gcc
-          mingw-w64-x86_64-cmake
-          make
+      run: |
+        # Download WinLibs MSVCRT version (compatible with Kali Linux cross-compilation)
+        curl -L -o mingw.zip https://github.com/brechtsanders/winlibs_mingw/releases/download/14.2.0posix-19.1.1-12.0.0-msvcrt-r2/winlibs-x86_64-posix-seh-gcc-14.2.0-mingw-w64msvcrt-12.0.0-r2.zip
+        7z x mingw.zip -oC:\mingw-msvcrt
+        echo "C:\mingw-msvcrt\mingw64\bin" >> $env:GITHUB_PATH
+      shell: pwsh
+
+    - name: Install CMake (Windows)
+      if: matrix.os == 'windows-latest'
+      run: choco install cmake -y
+      shell: pwsh
 
     - name: Get llama.cpp commit
       id: get_commit
@@ -76,7 +78,7 @@ jobs:
 
     - name: Build C++ library (Windows)
       if: runner.os == 'Windows'
-      shell: msys2 {0}
+      shell: bash
       run: |
         # Force apply patch before building
         echo "Applying memory loading patch..."
