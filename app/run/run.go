@@ -208,19 +208,19 @@ func RunHandler(ctx *cli.Context) error {
 	if ctx.Args().Len() > 0 {
 		promptFromArgs = strings.Join(ctx.Args().Slice(), " ")
 	}
-	
+
 	prompts := []string{}
-	
+
 	// Add prompt from positional arguments if provided
 	if promptFromArgs != "" {
 		prompts = append(prompts, promptFromArgs)
 	}
-	
+
 	// Add prompt from --prompt flag if provided (for backward compatibility)
 	if Conf.Prompt != "" {
 		prompts = append(prompts, Conf.Prompt)
 	}
-	
+
 	// prepend stdin to the prompt if provided
 	if !term.IsTerminal(int(os.Stdin.Fd())) {
 		in, err := io.ReadAll(os.Stdin)
@@ -233,7 +233,7 @@ func RunHandler(ctx *cli.Context) error {
 		opts.WordWrap = false
 		interactive = false
 	}
-	
+
 	opts.Prompt = strings.Join(prompts, " ")
 	if len(prompts) > 0 {
 		interactive = false
@@ -286,7 +286,7 @@ func RunHandler(ctx *cli.Context) error {
 	opts.ParentModel = info.Details.ParentModel
 
 	if interactive {
-		return errors.New("not support")
+		return generateInteractive(ctx, opts)
 	}
 	return generate(ctx, opts)
 }
@@ -466,4 +466,121 @@ func renderToolCalls(toolCalls []api.ToolCall, plainText bool) string {
 		out += readline.ColorDefault
 	}
 	return out
+}
+
+func chat(pctx *cli.Context, opts runOptions) (*api.Message, error) {
+	client := api.DefaultClient()
+	p := progress.NewProgress(os.Stderr)
+	defer p.StopAndClear()
+
+	spinner := progress.NewSpinner("")
+	p.Add("", spinner)
+
+	cancelCtx, cancel := context.WithCancel(pctx.Context)
+	defer cancel()
+
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT)
+
+	go func() {
+		<-sigChan
+		cancel()
+	}()
+
+	var state *displayResponseState = &displayResponseState{}
+	var thinkingContent strings.Builder
+	var latest api.ChatResponse
+	var fullResponse strings.Builder
+	var thinkTagOpened bool = false
+	var thinkTagClosed bool = false
+
+	role := "assistant"
+
+	fn := func(response api.ChatResponse) error {
+		if response.Message.Content != "" || !opts.HideThinking {
+			p.StopAndClear()
+		}
+
+		latest = response
+
+		role = response.Message.Role
+		if response.Message.Thinking != "" && !opts.HideThinking {
+			if !thinkTagOpened {
+				fmt.Print(thinkingOutputOpeningText(false))
+				thinkTagOpened = true
+				thinkTagClosed = false
+			}
+			thinkingContent.WriteString(response.Message.Thinking)
+			displayResponse(response.Message.Thinking, opts.WordWrap, state)
+		}
+
+		content := response.Message.Content
+		if thinkTagOpened && !thinkTagClosed && (content != "" || len(response.Message.ToolCalls) > 0) {
+			if !strings.HasSuffix(thinkingContent.String(), "\n") {
+				fmt.Println()
+			}
+			fmt.Print(thinkingOutputClosingText(false))
+			thinkTagOpened = false
+			thinkTagClosed = true
+			state = &displayResponseState{}
+		}
+		// purposefully not putting thinking blocks in the response, which would
+		// only be needed if we later added tool calling to the cli (they get
+		// filtered out anyway since current models don't expect them unless you're
+		// about to finish some tool calls)
+		fullResponse.WriteString(content)
+
+		if response.Message.ToolCalls != nil {
+			toolCalls := response.Message.ToolCalls
+			if len(toolCalls) > 0 {
+				fmt.Print(renderToolCalls(toolCalls, false))
+			}
+		}
+
+		displayResponse(content, opts.WordWrap, state)
+
+		return nil
+	}
+
+	if opts.Format == "json" {
+		opts.Format = `"` + opts.Format + `"`
+	}
+
+	req := &api.ChatRequest{
+		Model:    opts.Model,
+		Messages: opts.Messages,
+		Format:   json.RawMessage(opts.Format),
+		Options:  opts.Options,
+		Think:    opts.Think,
+	}
+
+	if opts.KeepAlive != nil {
+		req.KeepAlive = opts.KeepAlive
+	}
+
+	if err := client.Chat(cancelCtx, req, fn); err != nil {
+		if errors.Is(err, context.Canceled) {
+			return nil, nil
+		}
+
+		// this error should ideally be wrapped properly by the client
+		if strings.Contains(err.Error(), "upstream error") {
+			p.StopAndClear()
+			fmt.Println("An error occurred while processing your message. Please try again.")
+			fmt.Println()
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	if len(opts.Messages) > 0 {
+		fmt.Println()
+		fmt.Println()
+	}
+
+	if Conf.Verbose {
+		latest.Summary()
+	}
+
+	return &api.Message{Role: role, Content: fullResponse.String()}, nil
 }

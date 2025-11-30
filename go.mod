@@ -4,6 +4,7 @@ go 1.24.1
 
 require (
 	github.com/agnivade/levenshtein v1.1.1
+	github.com/emirpasic/gods/v2 v2.0.0-alpha
 	github.com/ethereum/go-ethereum v1.15.8
 	github.com/gin-contrib/cors v1.7.2
 	github.com/gin-gonic/gin v1.10.0
@@ -27,7 +28,6 @@ require (
 	github.com/d4l3k/go-bfloat16 v0.0.0-20211005043715-690c3bdd05f1 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/dlclark/regexp2 v1.11.4 // indirect
-	github.com/emirpasic/gods/v2 v2.0.0-alpha // indirect
 	github.com/gabriel-vasile/mimetype v1.4.3 // indirect
 	github.com/gin-contrib/sse v0.1.0 // indirect
 	github.com/go-playground/locales v0.14.1 // indirect
