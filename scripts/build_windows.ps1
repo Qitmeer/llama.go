@@ -6,10 +6,8 @@ if (-Not (Test-Path "./core" -PathType Container)) {
     exit 1
 }
 
-if (-Not (Test-Path "./core/llama.cpp/src" -PathType Container)) {
-    git submodule update --init --recursive
-    Write-Host "Update llama.cpp"
-}
+git submodule update --init --recursive
+Write-Host "Update llama.cpp submodules"
 
 cmake --version
 
